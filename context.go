@@ -10,6 +10,7 @@ type Context struct {
 	Writer     http.ResponseWriter
 	Req        *http.Request
 	StatusCode int
+	ConstTime  int64
 }
 
 // BindJson 解析请求json参数
