@@ -7,31 +7,25 @@ import (
 
 // Context TODO 扩展sync.pool，以提高性能
 type Context struct {
-	Writer http.ResponseWriter
-	Req    *http.Request
+	Writer     http.ResponseWriter
+	Req        *http.Request
+	StatusCode int
 }
 
-func (c *Context) isMethodRouterParams() bool {
-	return c.Req.Method == http.MethodGet || c.Req.Method == http.MethodDelete
+// BindJson 解析请求json参数
+func (c *Context) BindJson(obj interface{}) (err error) {
+	decoder := json.NewDecoder(c.Req.Body)
+	return decoder.Decode(obj)
 }
 
-// Bind 解析请求参数
-func (c *Context) Bind(v interface{}) (err error) {
-	// TODO 解析参数
-	// 1.分析请求方法，若为GET,DELETE 等方法则为路由传参
-	if c.isMethodRouterParams() {
-		// TODO 解析路由传参参数
-		return
-	}
-	// 2.分析request里面的content-type
-
-	return
+func (c *Context) SetStatusCode(code int) {
+	c.StatusCode = code
 }
 
 // Json 返回json 参数
-func (c *Context) Json(v interface{}) (err error) {
+func (c *Context) Json(obj interface{}) (err error) {
 	var data []byte
-	data, err = json.Marshal(v)
+	data, err = json.Marshal(obj)
 	if err != nil {
 		return
 	}

@@ -3,6 +3,7 @@ package father
 import (
 	"fmt"
 	"net/http"
+	"time"
 )
 
 var (
@@ -16,25 +17,41 @@ type NotFoundFunc func(w http.ResponseWriter)
 type Father struct {
 	Address string
 	FuncMap map[string]HandlerFunc
+	logger  Logger
 }
 
-type HandlerFunc func(http.ResponseWriter)
+type HandlerFunc func(c *Context)
 
 func NewFather() *Father {
 
 	return &Father{
 		FuncMap: make(map[string]HandlerFunc),
+		logger:  DefaultLogger,
 	}
 }
 
+func (f *Father) SetDefaultLogger(logger Logger) {
+	f.logger = logger
+}
 func (f *Father) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	startAt := time.Now().Unix()
+	c := Context{
+		Req:        req,
+		Writer:     w,
+		StatusCode: http.StatusOK,
+	}
 	defer func() {
+		constTime := time.Now().Unix() - startAt
 		if r := recover(); r != nil {
 			DefaultNotFound(w)
+			f.logger.Printf("[%v]:%v:%v -%v- const-->>%v s", req.Method, req.Host, req.RequestURI, http.StatusNotFound, constTime)
+		} else {
+			f.logger.Printf("[%v]:%v:%v -%v- const-->>%v s", req.Method, req.Host, req.RequestURI, c.StatusCode, constTime)
 		}
 	}()
-	handler := f.FuncMap[req.Method+req.RequestURI]
-	handler(w)
+
+	handler := f.FuncMap[req.Method+req.URL.Path]
+	handler(&c)
 }
 
 func (f *Father) Run(host string, port int) error {
