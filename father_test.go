@@ -6,6 +6,7 @@ import (
 
 func TestFather(t *testing.T) {
 	f := NewFather()
+	f.SetConstTimeType(ConstTypeUnixMilli)
 	hello := f.NewGroup("hello")
 	hello.Post("", func(c *Context) {
 		a := struct {

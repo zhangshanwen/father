@@ -5,14 +5,17 @@ import (
 	"net/http"
 )
 
-type Context struct {
-	Writer     http.ResponseWriter
-	Req        *http.Request
-	StatusCode int
-	ConstTime  int64
-	index      int
-	handlers   []HandlerFunc
-}
+type (
+	Context struct {
+		Writer        http.ResponseWriter
+		Req           *http.Request
+		StatusCode    int
+		ConstTime     int64
+		ConstTimeUint string
+		index         int
+		handlers      []HandlerFunc
+	}
+)
 
 // BindJson 解析请求json参数
 func (c *Context) BindJson(obj interface{}) (err error) {

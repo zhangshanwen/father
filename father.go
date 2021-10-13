@@ -3,9 +3,12 @@ package father
 import (
 	"fmt"
 	"net/http"
-	"reflect"
-	"runtime"
 	"time"
+)
+
+const (
+	ConstTypeUnix ConstTimeType = iota
+	ConstTypeUnixMilli
 )
 
 var (
@@ -18,20 +21,22 @@ var (
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 	DefaultRouterLog RouterLogFunc = func(c *Context) string {
-		return fmt.Sprintf("[%v]:%v:%v -%v- const-->>%v s", c.Req.Method, c.Req.Host, c.Req.RequestURI, c.StatusCode, c.ConstTime)
+		return fmt.Sprintf("[%v]:%v:%v -%v- cost-->>%v%v", c.Req.Method, c.Req.Host, c.Req.RequestURI, c.StatusCode, c.ConstTime, c.ConstTimeUint)
 	}
 )
 
 type (
 	ErrResponseFunc func(c *Context, w http.ResponseWriter)
 	RouterLogFunc   = func(c *Context) string
+	ConstTimeType   int
 )
 type (
 	Father struct {
-		Address string
-		Routers []Router
-		logger  Logger
-		groups  []*Group
+		Address       string
+		Routers       []Router
+		logger        Logger
+		groups        []*Group
+		constTimeType ConstTimeType
 	}
 )
 
@@ -48,17 +53,38 @@ func NewFather() *Father {
 func (f *Father) SetDefaultLogger(logger Logger) {
 	f.logger = logger
 }
+func (f *Father) getNow() int64 {
+	now := time.Now()
+	switch f.constTimeType {
+	case ConstTypeUnixMilli:
+		return now.UnixMilli()
+	default:
+		return now.Unix()
+	}
+}
+func (f *Father) getTimeUint() string {
+	switch f.constTimeType {
+	case ConstTypeUnixMilli:
+		return "ms"
+	default:
+		return "s"
+	}
+}
+func (f *Father) SetConstTimeType(constTimeType ConstTimeType) {
+	f.constTimeType = constTimeType
+}
 
 func (f *Father) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	startAt := time.Now().Unix()
+	startAt := f.getNow()
 	c := Context{
-		Req:        req,
-		Writer:     w,
-		StatusCode: http.StatusOK,
-		index:      -1,
+		Req:           req,
+		Writer:        w,
+		StatusCode:    http.StatusOK,
+		index:         -1,
+		ConstTimeUint: f.getTimeUint(),
 	}
 	defer func() {
-		c.ConstTime = time.Now().Unix() - startAt
+		c.ConstTime = f.getNow() - startAt
 		f.logger.Println(DefaultRouterLog(&c))
 	}()
 	// 遍历 路由
@@ -66,7 +92,6 @@ func (f *Father) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	for i := 0; i < len(f.Routers); i++ {
 		router := f.Routers[i]
-		f.logger.Println("请求路由为:", path)
 		if path != router.Path {
 			continue
 		}
@@ -122,8 +147,7 @@ func (f *Father) initRouters(path string, routerMap *map[string]bool, groups []*
 				f.logger.Fatalf("重复路由------>>>>>>[%v]%v", g.Method, routerPath)
 				return RepeatedRouterError
 			}
-			fn := runtime.FuncForPC(reflect.ValueOf(g.Handlers).Pointer()).Name()
-			f.logger.Printf("路由------>>>>>>[%v]%v---->%v\n", g.Method, routerPath, fn)
+			f.logger.Printf("路由------>>>>>>[%v]%v\n", g.Method, routerPath)
 			*routers = append(*routers, Router{
 				Method:   g.Method,
 				Path:     g.GetPath(path),
