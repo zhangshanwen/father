@@ -6,4 +6,6 @@ const (
 
 	contentType = "content-type"
 	jsonType    = "application/json"
+
+	httpSeparator = "/"
 )

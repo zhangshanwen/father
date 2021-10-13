@@ -4,16 +4,18 @@ import (
 	"testing"
 )
 
-func TestNewFather(t *testing.T) {
+func TestFather(t *testing.T) {
 	f := NewFather()
-	f.Post("/hello", func(c *Context) {
+	hello := f.NewGroup("hello")
+	hello.Post("", func(c *Context) {
 		a := struct {
 			Name string `json:"name"`
 		}{}
 		_ = c.BindJson(&a)
 		_ = c.Json(&a)
 	})
-	f.Get("/nimei", func(c *Context) {
+	nimei := f.NewGroup("nimei")
+	nimei.Get("", func(c *Context) {
 		js := map[string]interface{}{"code": 1, "msg": "nimei"}
 		_ = c.Json(js)
 	})

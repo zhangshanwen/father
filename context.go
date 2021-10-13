@@ -5,12 +5,13 @@ import (
 	"net/http"
 )
 
-// Context TODO 扩展sync.pool，以提高性能
 type Context struct {
 	Writer     http.ResponseWriter
 	Req        *http.Request
 	StatusCode int
 	ConstTime  int64
+	index      int
+	handlers   []HandlerFunc
 }
 
 // BindJson 解析请求json参数
@@ -33,4 +34,13 @@ func (c *Context) Json(obj interface{}) (err error) {
 	c.Writer.Header().Set(contentType, jsonType)
 	_, err = c.Writer.Write(data)
 	return
+}
+
+func (c *Context) Next() {
+	c.index++
+	for c.index < len(c.handlers) {
+		c.handlers[c.index](c)
+		c.index++
+	}
+
 }

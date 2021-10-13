@@ -22,18 +22,16 @@ var (
 	}
 )
 
-type ErrResponseFunc func(c *Context, w http.ResponseWriter)
-type RouterLogFunc = func(c *Context) string
+type (
+	ErrResponseFunc func(c *Context, w http.ResponseWriter)
+	RouterLogFunc   = func(c *Context) string
+)
 type (
 	Father struct {
 		Address string
 		Routers []Router
 		logger  Logger
-	}
-	Router struct {
-		Method  string
-		Path    string
-		Handler HandlerFunc
+		groups  []*Group
 	}
 )
 
@@ -57,6 +55,7 @@ func (f *Father) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		Req:        req,
 		Writer:     w,
 		StatusCode: http.StatusOK,
+		index:      -1,
 	}
 	defer func() {
 		c.ConstTime = time.Now().Unix() - startAt
@@ -67,11 +66,13 @@ func (f *Father) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	for i := 0; i < len(f.Routers); i++ {
 		router := f.Routers[i]
+		f.logger.Println("请求路由为:", path)
 		if path != router.Path {
 			continue
 		}
 		if method == router.Method {
-			router.Handler(&c)
+			c.handlers = router.Handlers
+			c.Next()
 			return
 		}
 		DefaultMethodNotAllowed(&c, w)
@@ -88,53 +89,51 @@ func (f *Father) Run(host string, port int) (err error) {
 		port = defaultPort
 	}
 	f.Address = fmt.Sprintf("%v:%v", host, port)
-	//TODO 检查路由是否重复
 	if err = f.checkRouters(); err != nil {
 		f.logger.Fatalf("服务启动失败,err=%v", err)
 	}
 	return http.ListenAndServe(f.Address, f)
 }
-func (f *Father) checkRouters() (err error) {
-	routerMap := map[string]bool{}
-	for i := 0; i < len(f.Routers); i++ {
-		originLen := len(routerMap)
-		router := f.Routers[i]
-		routerMap[router.Method+router.Path] = true
-		if originLen == len(routerMap) {
-			f.logger.Fatal("重复路由,[%v]:%v", router.Method, router.Path)
-		}
-		fn := runtime.FuncForPC(reflect.ValueOf(router.Handler).Pointer()).Name()
-		f.logger.Printf("路由------>>>>>>[%v]:[%v]---->%v", router.Method, router.Path, fn)
-	}
-
-	return
-}
-
-func (f *Father) addRouter(method, path string, handler HandlerFunc) {
-	f.Routers = append(f.Routers, Router{
-		Method:  method,
-		Path:    path,
-		Handler: handler,
-	})
-}
-
-func (f *Father) Post(path string, handler HandlerFunc) {
-	f.addRouter(http.MethodPost, path, handler)
-}
-func (f *Father) Get(path string, handler HandlerFunc) {
-	f.addRouter(http.MethodGet, path, handler)
-}
-
-func (f *Father) Put(path string, handler HandlerFunc) {
-	f.addRouter(http.MethodPut, path, handler)
-}
-func (f *Father) Delete(path string, handler HandlerFunc) {
-	f.addRouter(http.MethodDelete, path, handler)
-}
-func (f *Father) Patch(path string, handler HandlerFunc) {
-	f.addRouter(http.MethodPatch, path, handler)
-}
 
 /*
 暂时使用 Get Post Put Delete Patch 方法
 */
+
+func (f *Father) NewGroup(path string) *Group {
+	g := Group{}
+	gg := g.New(path)
+	f.groups = append(f.groups, gg)
+	return gg
+}
+func (f *Father) checkRouters() (err error) {
+	routerMap := map[string]bool{}
+	return f.initRouters(httpSeparator, &routerMap, f.groups, &f.Routers)
+}
+
+func (f *Father) initRouters(path string, routerMap *map[string]bool, groups []*Group, routers *[]Router) (err error) {
+	for i := 0; i < len(groups); i++ {
+		g := groups[i]
+		if len(g.Children) == 0 {
+			routerPath := g.GetPath(path)
+			oldLength := len(*routerMap)
+			r := *routerMap
+			r[g.Method+routerPath] = true
+			if oldLength == len(*routerMap) {
+				f.logger.Fatalf("重复路由------>>>>>>[%v]%v", g.Method, routerPath)
+				return RepeatedRouterError
+			}
+			fn := runtime.FuncForPC(reflect.ValueOf(g.Handlers).Pointer()).Name()
+			f.logger.Printf("路由------>>>>>>[%v]%v---->%v\n", g.Method, routerPath, fn)
+			*routers = append(*routers, Router{
+				Method:   g.Method,
+				Path:     g.GetPath(path),
+				Handlers: g.Handlers,
+			})
+			return
+		}
+		if err = f.initRouters(path+g.Path, routerMap, g.Children, routers); err != nil {
+			return
+		}
+	}
+	return
+}
