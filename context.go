@@ -36,7 +36,11 @@ func (c *Context) Json(obj interface{}) (err error) {
 	}
 	c.Writer.Header().Set(contentType, jsonType)
 	_, err = c.Writer.Write(data)
+	c.Stop()
 	return
+}
+func (c *Context) Stop() {
+	c.index = len(c.handlers) - 1
 }
 
 func (c *Context) Next() {

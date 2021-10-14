@@ -8,6 +8,14 @@ func TestFather(t *testing.T) {
 	f := NewFather()
 	f.SetConstTimeType(ConstTypeUnixMilli)
 	hello := f.NewGroup("hello")
+	hello.Middleware(func(c *Context) {
+		f.logger.Println("我是一个中间件哦")
+		a := struct {
+			Name string `json:"name"`
+		}{}
+		a.Name = "大大"
+		_ = c.Json(&a)
+	})
 	hello.Post("", func(c *Context) {
 		a := struct {
 			Name string `json:"name"`
