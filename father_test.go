@@ -13,7 +13,7 @@ func TestFather(t *testing.T) {
 		a := struct {
 			Name string `json:"name"`
 		}{}
-		a.Name = "大大"
+		a.Name = "我是中间件"
 		_ = c.Json(&a)
 	})
 	hello.Post("", func(c *Context) {
